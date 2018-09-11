@@ -52,11 +52,10 @@ class MessageFieldAccessor():
                 msg = getattr(msg, f)
         return msg
 
-def expandArrayFields(fields, topics, colors):
+def expandArrayFields(fields, topics):
     ret_fields = []
     ret_topics = []
-    ret_colors = []
-    for f, t, c in zip(fields, topics, colors):
+    for f, t in zip(fields, topics):
         search = re.search("\[.*\]" , f)
         if search:
             tmp=search.group().strip("[]").split(",")
@@ -71,19 +70,15 @@ def expandArrayFields(fields, topics, colors):
             for i in fList:
                 ret_fields.append(re.sub("\[.*\]", "[" + str(i) + "]", f))
                 ret_topics.append(t)
-                ret_topics.append(c)
         else:
             ret_fields.append(f)
             ret_topics.append(t)
-            ret_colors.append(c)
-    return (ret_fields, ret_topics, ret_colors)
+    return (ret_fields, ret_topics)
 
 class PlotData():
     def __init__(self, options):
         self.legend_font_size = 8
-        self.label_font_size = 8
-        self.title_font_size = 8
-        (self.fields_orig, self.topics, self.colors) = expandArrayFields(options["field"], options["topic"], options["color"])
+        (self.fields_orig, self.topics) = expandArrayFields(options["field"], options["topic"])
         self.fields = [f.split("/") for f in self.fields_orig]
         self.field_accessors = [MessageFieldAccessor(f) for f in self.fields]
         self.time_offset = options["time_offset"]
@@ -124,15 +119,14 @@ class PlotData():
             xs = [v[0].to_sec() - min_stamp.to_sec() + self.time_offset for v in vs]
             ys = [v[1] for v in vs]
             if self.label:
-                ax.plot(xs, ys, label=self.label[i], color=self.colors[i])
+                ax.plot(xs, ys, label=self.label[i])
             else:
-                ax.plot(xs, ys, label=self.topics[i] + "/" + self.fields_orig[i], color=self.colors[i])
-        ax.set_title(self.options["title"], fontsize=self.title_font_size)
+                ax.plot(xs, ys, label=self.topics[i] + "/" + self.fields_orig[i])
+        ax.set_title(self.options["title"])
         if self.xlabel:
             ax.set_xlabel(self.xlabel)
         if self.ylabel:
             ax.set_ylabel(self.ylabel)
-        ax.tick_params(labelsize=self.label_font_size)
         if show_legend and self.options["legend"]:
             legend = ax.legend(prop={'size': self.legend_font_size}, frameon=False)
         ax.minorticks_on()
@@ -172,21 +166,22 @@ class BagPlotter():
         conf file format is:
         global:
           layout: "vertical" or "horizontal"
-          legend_font_size: font size for the legend
-          label_font_size: font size for the axis label
-          title_font_size: font size for each plot
         plots:
-          - title: "title 1"
+          - title: "title"
             type: "line" or "hist"
-            topic: [topic1, topic2, ...]
-            field: [field1, field2, ...]
-            color: [color1, color2, ...]
+            topics:
+              - topic: "topic name"
+                field: "field name"
+              - topic: "topic name"
+                field: "field name"
             legend: true
-          - title: "title 2"
+          - title: "title"
             type: "line" or "hist"
-            topic: [topic1, topic2, ...]
-            field: [field1, field2, ...]
-            color: [color1, color2, ...]
+            topics:
+              - topic: "topic name"
+                field: "field name"
+              - topic: "topic name"
+                field: "field name"
             legend: true
         """
         with open(self.conf_file) as f:
@@ -203,8 +198,6 @@ class BagPlotter():
         self.global_options = dict()
         self.global_options["layout"] = self.readOption(global_options, "layout", "vertical")
         self.global_options["legend_font_size"] = self.readOption(global_options, "legend_font_size", 8)
-        self.global_options["label_font_size"] = self.readOption(global_options, "label_font_size", 8)
-        self.global_options["title_font_size"] = self.readOption(global_options, "title_font_size", 8)
     def setPlotOptions(self, data):
         plot_options = self.readOption(data, "plots", [])
         if len(plot_options) == 0:
@@ -229,20 +222,12 @@ class BagPlotter():
                 opt["topic"] = [opt["topic"]]
             if isinstance(opt["field"], str):
                 opt["field"] = [opt["field"]]
-            if not opt.has_key("color"):
-                opt["color"] = [None]*len(opt["topic"])
-            if not isinstance(opt["color"], list):                
-                opt["color"] = [opt["color"]]
             if len(opt["topic"]) != len(opt["field"]):
-                raise BagPlotterException("length of topic and field should be same")
-            if len(opt["topic"]) != len(opt["color"]):
-                raise BagPlotterException("length of topic and color should be same")
+                raise BagPlotterException("lengt of topic and field should be same")
             for topic in opt["topic"]:
                 self.all_topics.add(topic)
             self.topic_data.append(PlotData(opt))
             self.topic_data[-1].legend_font_size = self.global_options["legend_font_size"]
-            self.topic_data[-1].label_font_size = self.global_options["label_font_size"]
-            self.topic_data[-1].title_font_size = self.global_options["title_font_size"]
             self.plot_options.append(opt)
     def layoutGridSize(self):
         if self.global_options["layout"] == "vertical":
